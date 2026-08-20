@@ -1,0 +1,25 @@
+ML model for IB predictions
+IB database has columns (year, name, college, division, placing, finish time)
+Training data:
+	year
+	college
+	division
+	names
+	placing
+	points
+Features to be coded:
+	mean(divisions run)
+	mean(prev year division)
+	mean(individual points)
+	mean(prev year individual points)
+	number of first timers
+	mean(team points)
+	prev year team points
+	mean(college placing)
+	prev year college placing
+	% of DNFs
+	total IBs run
+For each mean of team individuals, dont include first timers in the calculation
+	Consider how to handle teams with no IB experience
+Label is the expected points
+Consider difficulty factor with DNFs, some divs have a higher DNF rate than others
