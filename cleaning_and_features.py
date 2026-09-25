@@ -210,5 +210,3 @@ team_features.to_csv('team_features.csv', index=False)
 # Correlation matrix for numeric columns only
 corr_matrix = team_features.select_dtypes(include='number').corr()
 corr_matrix.to_csv('correlation_matrix.csv')
-
-
