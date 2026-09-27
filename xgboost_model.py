@@ -1,5 +1,5 @@
 """
-Worst performing, RÂ² = 0.193, RMSE = 70.984
+Worst performing, R² = 0.275, RMSE = 89.830
 """
 
 import pandas as pd

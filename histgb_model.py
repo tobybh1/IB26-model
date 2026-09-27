@@ -1,5 +1,5 @@
 """
-2nd best, RÂ² = 0.236, RMSE = 69.058
+2nd best, R² = 0.286, RMSE = 89.097
 """
 
 import pandas as pd
@@ -25,11 +25,11 @@ key_features = ['college', 'division', 'sum_dnf_dq', 'avg_highest_div',
                 'best_team_score', 'total_yoe']
 
 X_train = train.drop(columns=['score', 'year'])
-X_train = train[key_features]
+#X_train = train[key_features]
 y_train = train['score']
 
 X_test = test.drop(columns=['score', 'year'])
-X_test = test[key_features]
+#X_test = test[key_features]
 y_test = test['score']
 
 model = HistGradientBoostingRegressor(
