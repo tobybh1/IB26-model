@@ -31,7 +31,7 @@ preprocessor = ColumnTransformer(
 # Lasso with automatic alpha selection
 model = Pipeline(
     [('preprocessor', preprocessor),
-     ('lasso', LassoCV(cv=5, random_state=42))]
+     ('lasso', LassoCV(cv=5, random_state=42, max_iter=20000))]
 )
 
 # Fit model

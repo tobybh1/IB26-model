@@ -1,30 +1,22 @@
 """
-Best performing model, R² = 0.296, RMSE = 66.295, optimised model, R² = 0.367
-RMSE = 83.884
+Best performing model, R² = 0.308, RMSE = 87.756, optimised model, R² = 0.429
+RMSE = 79.714
 """
 
 import pandas as pd
 from catboost import CatBoostRegressor
 from sklearn.metrics import r2_score, root_mean_squared_error
-import numpy as np
 
 df = pd.read_csv('team_features.csv')
 
 train = df[df['year'] != 2025]
 test = df[df['year'] == 2025]
 
-# Most important features based off Lasso regression
-key_features = ['college', 'division', 'sum_dnf_dq', 'avg_highest_div', 
-                'college_best_placing', 'avg_best_score', 'best_last_score', 
-                'best_team_score', 'total_yoe']
-
 X_train = train.drop(columns=['score', 'year'])
-X_train = X_train[key_features]
 y_train = train['score']
 
 X_test = test.drop(columns=['score', 'year'])
-X_test = X_test[key_features]
-y_test = test["score"]
+y_test = test['score']
 
 cat_features = ['college', 'division']
 
@@ -45,11 +37,68 @@ rmse = root_mean_squared_error(y_test, preds)
 print(f"R² = {r2:.3f}")
 print(f"RMSE = {rmse:.3f}")
 
+importance = pd.DataFrame({
+    'feature': X_train.columns,
+    'importance': model.get_feature_importance()
+}).sort_values('importance', ascending=False)
+
+# Testing for features
+importance_order = importance['feature'].tolist()
+
+results = []
+
+for n in [5, 10, 15, 20, 25, len(importance_order)]:
+
+    features = importance_order[:n]
+
+    X_train_sub = X_train[features]
+    X_test_sub = X_test[features]
+
+    cat_sub = [f for f in cat_features if f in features]
+
+    model_sub = CatBoostRegressor(
+        iterations=1000,
+        depth=6,
+        learning_rate=0.03,
+        loss_function='RMSE',
+        verbose=False,
+        allow_writing_files=False,
+        random_seed=42
+    )
+
+    model_sub.fit(
+        X_train_sub,
+        y_train,
+        cat_features=cat_sub
+    )
+
+    preds = model_sub.predict(X_test_sub)
+
+    results.append({
+        'n_features': n,
+        'R2': r2_score(y_test, preds),
+        'RMSE': root_mean_squared_error(y_test, preds)
+    })
+
+results = pd.DataFrame(results)
+
 # Tuning
+# key features from above
+key_features = ['sum_dnf_dq', 'college', 'division', 'avg_best_rog', 
+                'best_rog']
+
+X_train = train.drop(columns=['score', 'year'])
+X_train = X_train[key_features]
+y_train = train['score']
+
+X_test = test.drop(columns=['score', 'year'])
+X_test = X_test[key_features]
+y_test = test['score']
+
 results = []
 
 for depth in [1, 2, 4]:
-    for learning_rate in [0.01, 0.03, 0.05]:
+    for learning_rate in [0.01, 0.001, 0.005]:
         for l2_leaf_reg in [3, 10, 20]:
 
             model = CatBoostRegressor(
@@ -80,13 +129,11 @@ for depth in [1, 2, 4]:
 
 results = pd.DataFrame(results)
 
-results.to_csv('optm_catboost.csv', index=False)
-
 # Optimal model
 model = CatBoostRegressor(
     iterations=1000,
-    depth=1,
-    learning_rate=0.01,
+    depth=2,
+    learning_rate=0.005,
     l2_leaf_reg=3,
     loss_function='RMSE',
     verbose=100,
@@ -98,6 +145,17 @@ preds = model.predict(X_test)
 
 r2 = r2_score(y_test, preds)
 rmse = root_mean_squared_error(y_test, preds)
+
+results = X_test.copy()
+results['actual'] = y_test
+results['predicted'] = preds
+
+rmse_by_division = (
+    results.groupby('division')
+    .apply(lambda x: root_mean_squared_error(x['actual'], x['predicted']))
+    .reset_index(name='RMSE')
+)
+
 print(f"R² = {r2:.3f}")
 print(f"RMSE = {rmse:.3f}")
 
