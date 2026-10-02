@@ -87,9 +87,11 @@ for n in [5, 10, 15, 20, 25, len(importance_order)]:
 results = pd.DataFrame(results)
 
 # Tuning
-# These are the 5 best features from above
-key_features = ['sum_dnf_dq', 'college', 'division', 'avg_best_rog', 
-                'best_rog']
+# These are the 14 best features from above
+key_features = ['sum_dnf_dq', 'college', 'division', 'avg_rog', 'avg_best_rog', 
+                'best_rog', 'avg_worst_rog', 'avg_last_rog', 
+                'college_last_placing', 'college_best_placing', 'worst_rog',
+                'avg_highest_div', 'best_team_score', 'num_new_runners']
 
 X_train = train.drop(columns=['score', 'year'])
 X_train = X_train[key_features]
@@ -99,18 +101,24 @@ X_val = val.drop(columns=['score', 'year'])
 X_val = X_val[key_features]
 y_val = val['score']
 
+X_test = test.drop(columns=['score', 'year'])
+X_test = X_test[key_features]
+y_test = test['score']
+
 results = []
 
 for depth in [1, 2, 4]:
     for learning_rate in [0.01, 0.001, 0.005]:
-        for l2_leaf_reg in [3, 10, 20]:
+        for l2_leaf_reg in [3, 10]:
 
             model = CatBoostRegressor(
-                iterations=1000,
+                iterations=2000,
                 depth=depth,
                 learning_rate=learning_rate,
                 l2_leaf_reg=l2_leaf_reg,
                 loss_function="RMSE",
+                od_type="Iter",
+                od_wait=100,
                 verbose=200,
                 allow_writing_files=False,
             )
@@ -135,37 +143,23 @@ results = pd.DataFrame(results)
 
 # Optimal model
 model = CatBoostRegressor(
-    iterations=1000,
-    depth=2,
+    iterations=2000,
+    depth=1,
     learning_rate=0.005,
-    l2_leaf_reg=3,
+    l2_leaf_reg=10,
     loss_function='RMSE',
     verbose=100,
     allow_writing_files=False
 )
 
-model.fit(X_train, y_train, cat_features=cat_features)
+X_full = pd.concat([X_train, X_val], axis=0)
+y_full = pd.concat([y_train, y_val], axis=0)
+
+cat_features = ['college', 'division']
+model.fit(X_full, y_full, cat_features=cat_features)
 preds = model.predict(X_test)
 
-r2 = r2_score(y_test, preds)
-rmse = root_mean_squared_error(y_test, preds)
+final_preds = test[['college', 'division', 'year']].copy()
+final_preds['predicted_score'] = preds
 
-results = X_test.copy()
-results['actual'] = y_test
-results['predicted'] = preds
-
-rmse_by_division = (
-    results.groupby('division')
-    .apply(lambda x: root_mean_squared_error(x['actual'], x['predicted']))
-    .reset_index(name='RMSE')
-)
-
-print(f"R² = {r2:.3f}")
-print(f"RMSE = {rmse:.3f}")
-
-comparison = test[['college', 'division', 'year', 'score']].copy()
-comparison['predicted_score'] = preds
-comparison['error'] = comparison['predicted_score'] - comparison['score']
-comparison['abs_error'] = comparison['error'].abs()
-
-comparison.to_csv('comparison25.csv', index=False)
+final_preds.to_csv('final_preds26.csv', index=False)
