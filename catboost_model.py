@@ -1,6 +1,8 @@
 """
 Best performing model, R² = 0.308, RMSE = 87.756, optimised model, R² = 0.429
 RMSE = 79.714
+NOTE THAT THIS HAS NOT BEEN UPDATED SINCE CHANGING FROM PREDICTING SCORE TO 
+PLACING
 """
 
 import pandas as pd
@@ -9,14 +11,18 @@ from sklearn.metrics import r2_score, root_mean_squared_error
 
 df = pd.read_csv('team_features.csv')
 
-train = df[df['year'] != 2025]
+# Originally div x were given a score, but now that we're predicting placings
+# not sure how to handle div x as it will impact college teams. Remove for now
+df = df[df['college'] != 'Div X']
+
+train = df[df['year'] < 2025]
 test = df[df['year'] == 2025]
 
-X_train = train.drop(columns=['score', 'year'])
-y_train = train['score']
+X_train = train.drop(columns=['placing_pct', 'year'])
+y_train = train['placing_pct']
 
-X_test = test.drop(columns=['score', 'year'])
-y_test = test['score']
+X_test = test.drop(columns=['placing_pct', 'year'])
+y_test = test['placing_pct']
 
 cat_features = ['college', 'division']
 
@@ -87,13 +93,13 @@ results = pd.DataFrame(results)
 key_features = ['sum_dnf_dq', 'college', 'division', 'avg_best_rog', 
                 'best_rog']
 
-X_train = train.drop(columns=['score', 'year'])
+X_train = train.drop(columns=['placing_pct', 'year'])
 X_train = X_train[key_features]
-y_train = train['score']
+y_train = train['placing_pct']
 
-X_test = test.drop(columns=['score', 'year'])
+X_test = test.drop(columns=['placing_pct', 'year'])
 X_test = X_test[key_features]
-y_test = test['score']
+y_test = test['placing_pct']
 
 results = []
 
@@ -159,9 +165,9 @@ rmse_by_division = (
 print(f"R² = {r2:.3f}")
 print(f"RMSE = {rmse:.3f}")
 
-comparison = test[['college', 'division', 'year', 'score']].copy()
-comparison['predicted_score'] = preds
-comparison['error'] = comparison['predicted_score'] - comparison['score']
+comparison = test[['college', 'division', 'year', 'placing_pct']].copy()
+comparison['predicted_placing'] = preds
+comparison['error'] = comparison['predicted_placing'] - comparison['placing_pct']
 comparison['abs_error'] = comparison['error'].abs()
 
 comparison.to_csv('comparison25.csv', index=False)

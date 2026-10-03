@@ -4,7 +4,7 @@ save_data_on_exit = True
 save_history = True
 save_non_project_files = False
 project_type = 'empty-project-type'
-recent_files = ['cleaning_and_features.py', 'catboost_model.py', 'final_model.py', 'final_model_gpt.py']
+recent_files = ['cleaning_and_features.py', 'catboost_model.py', 'final_model.py']
 
 [main]
 version = 0.2.0

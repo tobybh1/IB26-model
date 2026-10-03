@@ -1,6 +1,5 @@
 """
-Best performing model, R² = 0.308, RMSE = 87.756, optimised model, R² = 0.429
-RMSE = 79.714
+Final model
 """
 
 import pandas as pd
@@ -9,24 +8,28 @@ from sklearn.metrics import r2_score, root_mean_squared_error
 
 df = pd.read_csv('team_features.csv')
 
+# Originally div x were given a score, but now that we're predicting placings
+# not sure how to handle div x as it will impact college teams. Remove for now
+df = df[df['college'] != 'Div X']
+
 train = df[df['year'] < 2025]
 val = df[df['year'] == 2025]
 test = df[df['year'] == 2026]
 
-X_train = train.drop(columns=['score', 'year'])
-y_train = train['score']
+X_train = train.drop(columns=['placing_pct', 'year'])
+y_train = train['placing_pct']
 
-X_val = val.drop(columns=['score', 'year'])
-y_val = val['score']
+X_val = val.drop(columns=['placing_pct', 'year'])
+y_val = val['placing_pct']
 
-X_test = test.drop(columns=['score', 'year'])
-y_test = test['score']
+X_test = test.drop(columns=['placing_pct', 'year'])
+y_test = test['placing_pct']
 
 cat_features = ['college', 'division']
 
 model = CatBoostRegressor(
     iterations=1000,
-    depth=6,
+    depth=2,
     learning_rate=0.03,
     loss_function="RMSE",
     verbose=100,
@@ -46,7 +49,7 @@ importance = pd.DataFrame({
     'importance': model.get_feature_importance()
 }).sort_values('importance', ascending=False)
 
-# Testing for features
+# Feature selection
 importance_order = importance['feature'].tolist()
 
 results = []
@@ -84,32 +87,15 @@ for n in [5, 10, 15, 20, 25, len(importance_order)]:
         'RMSE': root_mean_squared_error(y_val, preds)
     })
 
+# Shows that all features is best
 results = pd.DataFrame(results)
 
 # Tuning
-# These are the 14 best features from above
-key_features = ['sum_dnf_dq', 'college', 'division', 'avg_rog', 'avg_best_rog', 
-                'best_rog', 'avg_worst_rog', 'avg_last_rog', 
-                'college_last_placing', 'college_best_placing', 'worst_rog',
-                'avg_highest_div', 'best_team_score', 'num_new_runners']
-
-X_train = train.drop(columns=['score', 'year'])
-X_train = X_train[key_features]
-y_train = train['score']
-
-X_val = val.drop(columns=['score', 'year'])
-X_val = X_val[key_features]
-y_val = val['score']
-
-X_test = test.drop(columns=['score', 'year'])
-X_test = X_test[key_features]
-y_test = test['score']
-
 results = []
 
-for depth in [1, 2, 4]:
-    for learning_rate in [0.01, 0.001, 0.005]:
-        for l2_leaf_reg in [3, 10]:
+for depth in [4, 6, 8]:
+    for learning_rate in [0.01, 0.005]:
+        for l2_leaf_reg in [3]:
 
             model = CatBoostRegressor(
                 iterations=2000,
@@ -144,9 +130,9 @@ results = pd.DataFrame(results)
 # Optimal model
 model = CatBoostRegressor(
     iterations=2000,
-    depth=1,
+    depth=4,
     learning_rate=0.005,
-    l2_leaf_reg=10,
+    l2_leaf_reg=3,
     loss_function='RMSE',
     verbose=100,
     allow_writing_files=False
@@ -159,7 +145,7 @@ cat_features = ['college', 'division']
 model.fit(X_full, y_full, cat_features=cat_features)
 preds = model.predict(X_test)
 
-final_preds = test[['college', 'division', 'year']].copy()
-final_preds['predicted_score'] = preds
+final_preds = test[['college', 'division']].copy()
+final_preds['win_prob'] = preds
 
 final_preds.to_csv('final_preds26.csv', index=False)

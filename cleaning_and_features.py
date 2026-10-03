@@ -8,7 +8,7 @@ runner_df = pd.read_excel('IB database.xlsx', sheet_name='Runners',
                           usecols=['name', 'college', 'division', 'year', 
                                    'placing'])
 team_df = pd.read_excel('IB database.xlsx', sheet_name='Teams',
-                        usecols=['college', 'division', 'year', 'score'])
+                        usecols=['college', 'division', 'year', 'placing'])
 college_df = pd.read_excel('IB database.xlsx', sheet_name='Colleges')
 rogaine_df = pd.read_excel('night_rogaine_results22-26.xlsx')
 
@@ -16,27 +16,50 @@ rogaine_df = pd.read_excel('night_rogaine_results22-26.xlsx')
 # ===== e.g. how a specific team has performed in recent  years =====
 team_df = team_df.sort_values(['college', 'division', 'year'])
 
-team_df['last_team_score'] = (
-    team_df
-    .groupby(['college', 'division'])['score']
-    .shift()
-    )
+# Converting placings to a percentile, e.g. 1, 2, 3, 4, 5, DNF, DNF will be 
+# converted to 1, 0.8, 0.6, 0.4, 0.2, 0, 0
+def placing_pct(group):
+    finished = ~group['placing'].isin(['DNF', 'DQ'])
+    n_finished = finished.sum()
 
-team_df['avg_team_score'] = (
+    result = pd.Series(0.0, index=group.index)
+
+    result[finished] = (
+        n_finished - group.loc[finished, 'placing'].astype(float) + 1
+    ) / n_finished
+
+    return result
+
+team_df['placing_pct'] = (
+    team_df.groupby(['year', 'division'], group_keys=False)
+      .apply(placing_pct)
+)
+
+# Last year performance
+team_df['last_team_placing'] = (
     team_df
-    .groupby(['college', 'division'])['score']
+    .groupby(['college', 'division'])['placing_pct']
+    .shift()
+)
+
+# Average historical performance
+team_df['avg_team_placing'] = (
+    team_df
+    .groupby(['college', 'division'])['placing_pct']
     .transform(lambda x: x.shift().expanding().mean())
     )
 
-team_df['best_team_score'] = (
+# Best historical performance
+team_df['best_team_placing'] = (
     team_df
-    .groupby(['college', 'division'])['score']
+    .groupby(['college', 'division'])['placing_pct']
     .transform(lambda x: x.shift().expanding().max())
     )
 
-team_df['worst_team_score'] = (
+# Worst historical performance
+team_df['worst_team_placing'] = (
     team_df
-    .groupby(['college', 'division'])['score']
+    .groupby(['college', 'division'])['placing_pct']
     .transform(lambda x: x.shift().expanding().min())
     )
 
@@ -69,7 +92,7 @@ college_df['college_worst_placing'] = (
 
 # ===== runner's IB history =====
 runner_hist = runner_df.merge(
-    team_df[['college','division','year','score']],
+    team_df[['college','division','year','placing_pct']],
     on=['college','division','year'],
     how='left'
 )
@@ -106,35 +129,46 @@ runner_hist['lowest_div'] = (
     .transform(lambda x: x.shift().expanding().max())
     )
 
-runner_hist['last_score'] = (
+runner_hist['last_placing'] = (
     runner_hist
-    .groupby('name')['score']
+    .groupby('name')['placing_pct']
     .shift()
     )
 
-runner_hist['avg_score'] = (
+runner_hist['avg_placing'] = (
     runner_hist
-    .groupby('name')['score']
+    .groupby('name')['placing_pct']
     .transform(lambda x: x.shift().expanding().mean())
     )
 
-runner_hist['best_score'] = (
+runner_hist['best_placing'] = (
     runner_hist
-    .groupby('name')['score']
+    .groupby('name')['placing_pct']
     .transform(lambda x: x.shift().expanding().max())
     )
 
-runner_hist['worst_score'] = (
+runner_hist['worst_placing'] = (
     runner_hist
-    .groupby('name')['score']
+    .groupby('name')['placing_pct']
     .transform(lambda x: x.shift().expanding().min())
     )
 
 runner_hist['new_runner'] = (runner_hist['yoe'] == 0).astype(int)
 
-runner_hist['dnf_dq'] = runner_hist['placing'].isin(['DNF', 'DQ']).astype(int)
+runner_hist['dnf_dq'] = (
+    runner_hist['placing']
+    .isin(['DNF', 'DQ'])
+    .astype(int)
+    .groupby(runner_hist['name'])
+    .cumsum()
+    .groupby(runner_hist['name'])
+    .shift(1)
+    .fillna(0)
+)
 
 # ===== runner's day/night rogaine history =====
+# All rogaine scores have been standardised to a z-score in excel before 
+# loading into python
 rog_hist = rogaine_df[rogaine_df['name'].isin(runner_df['name'])]
 rog_hist = rog_hist.sort_values(['name', 'year'])
 
@@ -192,10 +226,10 @@ runner_hist = runner_hist.merge(
             'college',
             'division',
             'year',
-            'avg_team_score',
-            'last_team_score',
-            'best_team_score',
-            'worst_team_score'
+            'avg_team_placing',
+            'last_team_placing',
+            'best_team_placing',
+            'worst_team_placing'
             ]
         ],
     on=['college', 'division', 'year'],
@@ -240,19 +274,19 @@ team_features = (
         best_runner_div=('highest_div', 'min'),
         worst_runner_div=('lowest_div', 'max'),
         
-        # score history
-        avg_score=('avg_score', 'mean'),
-        avg_last_score=('last_score', 'mean'),
-        avg_best_score=('best_score', 'mean'),
-        avg_worst_score=('worst_score', 'mean'),
-        best_runner_score=('best_score', 'max'),
-        worst_runner_score=('worst_score', 'min'),
+        # placing history
+        avg_placing=('avg_placing', 'mean'),
+        avg_last_placing=('last_placing', 'mean'),
+        avg_best_placing=('best_placing', 'mean'),
+        avg_worst_placing=('worst_placing', 'mean'),
+        best_runner_placing=('best_placing', 'max'),
+        worst_runner_placing=('worst_placing', 'min'),
         
         # historical team performance
-        avg_team_score=('avg_team_score', 'first'),
-        last_team_score=('last_team_score', 'first'),
-        best_team_score=('best_team_score', 'first'),
-        worst_team_score=('worst_team_score', 'first'),
+        avg_team_placing=('avg_team_placing', 'first'),
+        last_team_placing=('last_team_placing', 'first'),
+        best_team_placing=('best_team_placing', 'first'),
+        worst_team_placing=('worst_team_placing', 'first'),
         
         # historical college performance
         college_last_placing=('college_last_placing', 'first'),
@@ -281,7 +315,7 @@ team_features = (
 
 # ===== add target variable =====
 team_features = team_features.merge(
-    team_df[['college', 'division', 'year', 'score']],
+    team_df[['college', 'division', 'year', 'placing_pct']],
     on=['college', 'division', 'year'],
     how='left'
 )
@@ -298,7 +332,7 @@ team_features['college'] = team_features['college'].str.replace(
 # not sure if there's a better way to deal with div x
 team_features.loc[
     team_features['college'] == 'Div X',
-    ['avg_team_score', 'last_team_score', 'best_team_score']
+    ['avg_team_placing', 'last_team_placing', 'best_team_placing']
 ] = np.nan
 
 team_features.to_csv('team_features.csv', index=False)

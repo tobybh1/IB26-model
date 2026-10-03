@@ -1,5 +1,7 @@
 """
 2nd best, R² = 0.286, RMSE = 89.097
+NOTE THAT THIS HAS NOT BEEN UPDATED SINCE CHANGING FROM PREDICTING SCORE TO 
+PLACING
 """
 
 import pandas as pd
@@ -16,20 +18,13 @@ div_enc = LabelEncoder()
 df['college'] = college_enc.fit_transform(df['college'])
 df['division'] = div_enc.fit_transform(df['division'])
 
-train = df[df['year'] != 2025]
+train = df[~df['year'].isin([2025, 2026])]
 test = df[df['year'] == 2025]
 
-# Most important features based off Lasso regression
-key_features = ['college', 'division', 'sum_dnf_dq', 'avg_highest_div', 
-                'college_best_placing', 'avg_best_score', 'best_last_score', 
-                'best_team_score', 'total_yoe']
-
 X_train = train.drop(columns=['score', 'year'])
-#X_train = train[key_features]
 y_train = train['score']
 
 X_test = test.drop(columns=['score', 'year'])
-#X_test = test[key_features]
 y_test = test['score']
 
 model = HistGradientBoostingRegressor(
